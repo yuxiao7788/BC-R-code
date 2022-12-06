@@ -1,4 +1,197 @@
-#####1. Species distribution data extract
+# Set the work directory
+setwd("D:/BC") 
+
+# Load the necessary packages
+library(raster)
+library(ncdf4)
+library(magrittr)
+library(sf)
+library(ggplot2)
+library(RColorBrewer)
+library(ggalt)
+library(Rphylopars)
+library(phytools)
+library(picante)
+library(landscapemetrics)
+
+
+#1. Current (1970-2000) climate data extract
+# Load amphibian species distribution site
+sppoint=readRDS("./Data/amphibians_distribution.RDS")
+
+# CRU-TS data load and extract
+# data load
+CRU_tmp=stack("./Data/cru_ts4.06.1901.2021.tmp.dat.nc",varname="tmp")
+# monthly average temperature from 1970 to 2000 extract
+sta=sppoint
+sta.crs=SpatialPoints(sppoint)
+crs(sta.crs)="+proj=longlat +datum=WGS84 +no_defs"
+for (j in 70:100) {
+   mat=overlay(CRU_tmp[[12*j-11]],CRU_tmp[[12*j-10]],CRU_tmp[[12*j-9]],CRU_tmp[[12*j-8]],CRU_tmp[[12*j-7]],CRU_tmp[[12*j-6]],CRU_tmp[[12*j-5]],CRU_tmp[[12*j-4]],CRU_tmp[[12*j-3]],CRU_tmp[[12*j-2]],CRU_tmp[[12*j-1]],CRU_tmp[[12*j]],fun=function(a,b,c,d,e,f,g,h,m,n,o,p){return((a+b+c+d+e+f+g+h+m+n+o+p)/12)})
+   mat.extract=raster::extract(mat,sta.crs)
+   sta=cbind(sta,mat.extract)
+ }
+CRU=cbind(sta[,c(1,2)],apply(sta[,-c(1,2)],1,mean))
+colnames(CRU)[3]="CRU"
+
+# 2. 25 GCMs climate data extract
+# GCM names: ACCESS-CM2", "ACCESS-ESM1-5", "AWI-CM-1-1-MR", "BCC-CSM2-MR", "CanESM5", "CanESM5-CanOE", "CMCC-ESM2", "CNRM-CM6-1", "CNRM-CM6-1-HR", "CNRM-ESM2-1", 
+# "EC-Earth3-Veg", "EC-Earth3-Veg-LR", "FIO-ESM-2-0", "GFDL-ESM4", "GISS-E2-1-G", "GISS-E2-1-H", "HadGEM3-GC31-LL", "INM-CM4-8", "INM-CM5-0", "IPSL-CM6A-LR", "MIROC-ES2L", 
+# "MIROC6", "MPI-ESM1-2-HR", "MPI-ESM1-2-LR", "MRI-ESM2-0", "UKESM1-0-LL"
+
+GCmname=dir("B:\\wc2.1_10m\\")%>%
+gsub("\\.tif","",.)
+GCM_temp=sppoint
+
+for(n in GCmname){
+  gdt=stack(paste0("./Data/",n,".tif"))[[1]]
+  gdt=raster::aggreagte(gdt,fact=3,fun=mean)
+  gtemp=raster::extract(gdt,sppoint)
+  GCM_temp=cbind(GCM_temp,gtemp)
+}
+colnames(GCM_temp)=c(colnames(GCM_temp),gsub("\\wc2.1_10m_bioc_","",GCmname))
+
+# 3. Fig.2 Spatial distribution of climatic debts versus credits of all species of amphibia
+# Load climate debt results
+ampCD=readRDS("./Result/Amphibian_CD.RDS")
+
+# Load global shape file
+wos=read_sf("/Data/global.shp")
+
+# Assign projection style
+newproj="+proj=robin"
+
+# Assign color gradient
+jet.colors=colorRampPalette(c("#025189", "#0C9CB4", "#94C280","#F1C359", "#D03F2E", "#982123"))
+
+# Data projection transformation
+ dt1=rasterFromXYZ(ampCD[,c(1,2,6)],res=0.5,crs = 4326)%>%
+  projectRaster(., crs=newproj)%>%
+  as.data.frame(.,xy=TRUE)%>%
+  na.omit(.)
+colnames(dt1)=c("x","y","cd")
+
+p=ggplot()+geom_tile(data = rdt1, aes(x=x, y=y, fill=cd)) + 
+scale_fill_stepsn(colors = jet.colors(6),limits=c(-20,25),breaks=seq(-20,25,5)) +
+geom_sf(data = wos,size=0.01) +
+coord_sf(crs = newproj) +
+scale_x_continuous(breaks = c(-180,180)) +
+scale_y_continuous(breaks = c(-66,88)) +
+theme_bw() +
+theme(legend.position = "bottom",legend.key.width = unit(14, "mm"), +
+legend.key.height = unit(3, "mm"),legend.title=element_blank(),axis.text=element_blank(), +
+panel.border = element_blank(),axis.ticks = element_blank(),axis.title.x = element_blank(), +
+axis.title.y = element_blank())
+#
+p
+
+# 4. Fig.3 Climatic debts comparison of different families
+
+# Load climate debts data of different families
+familyname=gsub("\\.RDS","",dir("./Result/family/"))
+#
+familycd=data.frame()
+for(f in 1:74){
+  dt=readRDS(paste0("./Result/family/",familyname[f],".RDS"))
+  dt=apply(dt[,c(3:7)],2,mean,na.rm=T)
+  familycd=rbind(familycd,dt)
+}
+colnames(familycd)=c("y2000","ssp126_20","ssp126_60","ssp585_20","ssp585_60")
+familycd$group=familyname
+
+# Sorting fanily name from low to high base on climate debts value
+familycd$group=factor(familycd$group, levels=familycd$group[order(familycd$y2000, decreasing=T)])
+#
+pf=ggplot(aes(x=y2000,xend=ssp126_60,y=group),data=familycd)+
+  geom_point(aes(x=ssp126_20,y=group),color="#FFBA42",size=1.5,shape=16)+
+  geom_dumbbell(colour_x = "#2D3D85",colour_xend = "#D93B67",size_x = 1.5,size_xend = 1.5,size=0.2,color="gray",dot_guide = F,shape=16)+
+  scale_x_continuous(limits = c(-2.5,5))+
+  theme_classic()+
+  theme(panel.grid.minor.x =element_blank(),
+        panel.grid = element_blank(),
+        legend.position = "bottom",
+        plot.title = element_text(hjust = 0.5))+geom_vline(aes(xintercept=0), colour="#BEB8DC", linetype="dashed")+ggtitle("SSP126")+ylab("Family")+
+  xlab("Climate Debt (degree of Celsius)")
+#
+pf
+
+# 5. Fig. 4 Climate debt comparison of 16 biomes and 11 zoogeographic regions
+# Fig. 4(a)
+# Load climate debts data of biome regions
+bdtdt=readRDS("./Result/biome.RDS")
+#
+bdtdt$region=factor(bdtdt$region, levels=c("Mangroves",
+                                           "Tropical and Subtropical Moist Broadleaf Forests",
+                                           "Tropical and Subtropical Dry Broadleaf Forests",
+                                           "Tropical and Subtropical Grasslands, Savannas and Shrublands",
+                                           "Deserts and Xeric Shrublands",
+                                           "Montane Grasslands and Shrublands",
+                                           "Mediterranean Forests, Woodlands and Scrub",
+                                           "Rock and Ice",
+                                           "Flooded Grasslands and Savannas",
+                                           "Temperate Grasslands, Savannas and Shrublands",
+                                           "Inland Water",
+                                           "Temperate Broadleaf and Mixed Forests",
+                                           "Tropical and Subtropical Coniferous Forests",
+                                           "Temperate Conifer Forests",
+                                           "Boreal Forests/Taiga","Tundra"))
+#
+pb=ggplot(bdtdt,aes(x=region,y=cd))+
+geom_boxplot(aes(fill=region),outlier.colour = NA)+
+theme_classic()+
+geom_hline(yintercept = 0, linetype ="dashed", size= 0.2,color="gray")+
+ylab("Climate debt")+
+scale_y_continuous(limits = c(-3,5))+
+theme(legend.position = "none",
+legend.title=element_blank(),
+axis.text.x = element_blank(),
+axis.title.x = element_blank(),
+axis.ticks.x = element_blank())
+#
+pb
+
+# Fig. 4(b)
+# Load climate debts data of zoogeographic regions
+bdtdt=readRDS("./Result/zoogeography.RDS")
+#
+bdtdt$region <- factor(bdtdt$region, levels=c("Panamanian",
+                                              "Saharo-Arabian",
+                                              "Palearctic",
+                                              "Madagascan",
+                                              "Afrotropical",
+                                              "Nearctic",
+                                              "Australian",
+                                              "Sino-Japanese",
+                                              "Oriental",
+                                              "Oceanina",
+                                              "Neotropical"))
+#
+pz=ggplot(bdtdt,aes(x=region,y=cd))+
+geom_boxplot(aes(fill=region),outlier.colour = NA)+
+theme_classic()+
+geom_hline(yintercept = 0, linetype ="dashed", size= 0.2,color="gray")+
+ylab("Climate debt")+
+scale_y_continuous(limits = c(-5,15))+
+theme(legend.position = "none",
+legend.title=element_blank(),
+axis.text.x=element_text(angle = 90,hjust = 1),
+axis.title.x = element_blank(),
+axis.ticks.x = element_blank())
+
+# 6. Fig. 5 Contribution of 8 independent variables to global climatic debts in the current period
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
