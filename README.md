@@ -1,6 +1,6 @@
 # Climatic debts for global amphibians: who, where and why?
 # Code availablility
-The codes for data analysis and visualizing the figures 2 to 5 of the main text are available here.
+The codes for data analysis and visualizing of the main text are available here.
 # Author(s)
 Yuxiao He yuxiaohe2014@163.com
 Henan Normal University, Xinxiang 453002, People’s Republic of China
