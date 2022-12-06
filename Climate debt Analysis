@@ -13,6 +13,7 @@ library(Rphylopars)
 library(phytools)
 library(picante)
 library(landscapemetrics)
+library(rdacca.hp)
 
 
 #1. Current (1970-2000) climate data extract
