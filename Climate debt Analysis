@@ -9,12 +9,6 @@ library(sf)
 library(ggplot2)
 library(RColorBrewer)
 library(ggalt)
-library(Rphylopars)
-library(phytools)
-library(picante)
-library(landscapemetrics)
-library(rdacca.hp)
-
 
 #1. Current (1970-2000) climate data extract
 # Load amphibian species distribution site
@@ -179,22 +173,4 @@ axis.text.x=element_text(angle = 90,hjust = 1),
 axis.title.x = element_blank(),
 axis.ticks.x = element_blank())
 
-# 6. Fig. 5 Contribution of 8 independent variables to global climatic debts in the current period
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+###
