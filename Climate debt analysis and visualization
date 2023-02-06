@@ -17,156 +17,6 @@ library(rdacca.hp)
 library(future)
 library(future.apply)
 
-# Function of climatic debt computation
-#climate debt computation
-#Tsmat is a matrix, the first column is longitude, the second column is latitude
-#the third column is the climatic variable in each grid
-#the fourth column and others are species presences in each grid
-
-CD.cal<-function(Tsmat)
-{
-  smat=Tsmat[,-c(1:3)]
-  snum=dim(smat)[2]
-  rnum=dim(smat)[1]
-  cd=vector()
-  for(i in 1:rnum)
-  {
-    ids=which(smat[i,]>0)
-    Sr=length(ids)
-    if(Sr==0)
-    {
-      cd[i]=NA
-    }else
-    {
-      sci=vector()
-      for(j in 1:Sr)
-      {
-        di=which(smat[,ids[j]]>0)
-        Ri=length(di)
-        if(length(di)==0)
-        {
-          sci[j]=0
-        }else
-        {
-          sci[j]=sum(Tsmat[di,3])/Ri
-        }
-      }
-      cti=sum(sci,na.rm=TRUE)/Sr
-      cd[i]=Tsmat[i,3]-cti
-    }
-  }
-  return(cd)
-}
-
-#climate debt partitioning based on species grouping
-#sps.group.ID is a vector of species ID or names who belong to a specific group
-#Tsmat is a matrix, the first column is longitude, the second column is latitude
-#the third column is the climatic variable in each grid
-#the fourth column and others are species presences in each grid
-
-CD.species.grouping<-function(Tsmat,sps.group.ID)
-{
-  smat=Tsmat[,-c(1:3)]
-  snum=dim(smat)[2]
-  sps=colnames(smat)
-  GID=which(sps%in%sps.group.ID==TRUE)
-  rnum=dim(smat)[1]
-  cd=vector()
-  for(i in 1:rnum)
-  {
-    ids=which(smat[i,]>0)
-    Sr=length(ids)
-    ids1=which(GID%in%ids==TRUE)
-    Sr1=length(ids1)
-    if(Sr1==0)
-    {
-      cd[i]=NA
-    }else
-    {
-      sci=vector()
-      for(j in 1:Sr1)
-      {
-        di=which(smat[,GID[ids1][j]]>0)
-        Ri=length(di)
-        if(length(di)==0)
-        {
-          sci[j]=0
-        }else
-        {
-          sci[j]=sum(Tsmat[di,3])/Ri
-        }
-      }
-      cti=sum(sci,na.rm=TRUE)/Sr
-      cd[i]=(Sr1/Sr)*Tsmat[i,3]-cti
-    }
-  }
-  return(cd)
-}
-
-#climate debt partitioning based on site grouping using shared species
-#site.group.ID is a vector of group ID for each grid cell
-#Tsmat is a matrix, the first column is longitude, the second column is latitude
-#the third column is the climatic variable in each grid
-#the fourth column and others are species presences in each grid
-########
-CD.site.partitioning<-function(Tsmat,site.group.ID)
-{
-  smat=Tsmat[,-c(1:3)]
-  gs=unique(site.group.ID)
-  G=length(gs)
-  snum=dim(smat)[2]
-  rnum=dim(smat)[1]
-  GID=which(colSums(smat[site.group.ID,])>0)
-  Np=vector()
-  for(i in 1:snum)
-  {
-    ids=which(smat[,i]>0)
-    Np[i]=1/length(unique(site.group.ID[ids]))
-  }
-  cmat=vector()
-  for(j in 1:G)
-  {
-    gids=which(site.group.ID==gs[j])
-    GID=which(colSums(smat[gids,])>0)
-    cd=vector()
-    for(i in 1:rnum)
-    {
-      ids=which(smat[i,]>0)
-      Sr=length(ids)
-      ids1=which(GID%in%ids==TRUE)
-      Sr1=length(ids1)
-      #
-      if(Sr1==0)
-      {
-        cd[i]=NA
-      }else
-      {
-        sci=vector()
-        weight=Np[GID[ids1]]
-        for(j in 1:Sr1)
-        {
-          di=which(smat[,GID[ids1][j]]>0)
-          Ri=length(di)
-          if(length(di)==0)
-          {
-            sci[j]=0
-          }else
-          {
-            sci[j]=sum(Tsmat[di,3])/Ri
-          }
-        }
-        cti=sum(sci*weight,na.rm=TRUE)/Sr
-        cd[i]=(sum(weight,na.rm=TRUE)/Sr)*Tsmat[i,3]-cti
-      }
-    }
-    cmat=cbind(cmat,cd)
-  }
-  cmat=cbind(cmat,CD.cal(Tsmat))
-  colnames(cmat)=c(gs,"total")
-  return(cmat)
-}
-########
-
 #1. Current (1970-2000) climate data extract
 # Load amphibian species distribution site
 sppoint=readRDS("./Data/amphibians_distribution.RDS")
@@ -497,42 +347,42 @@ biodt$Individual=biodt$Individual*100
 unique(biodt$factor)
 biodt$factor <- factor(biodt$factor, levels=c("No explanation",
                                            "Artificial land fragmentation",
-										   "Artificial land area",
-										   "Phylogenetic diversity",
-										   "Functional diversity",
-										   "Change of nature habitat area",
-										   "Change of artificial land area",
-										   "Nature habitat area",
-										   "Nature habitat fragmentation"))
+					   "Artificial land area",
+					   "Phylogenetic diversity",
+					   "Functional diversity",
+					   "Change of nature habitat area",
+					   "Change of artificial land area",
+					   "Nature habitat area",
+					   "Nature habitat fragmentation"))
 
 biodt$region <- factor(biodt$region, levels=c("Tundra",
                                             "Rock and Ice",
-											"Boreal Forests/Taiga",
-											"Temperate Conifer Forests",
-											"Inland Water",
-											"Temperate Grasslands, Savannas and Shrublands",
-											"Temperate Broadleaf and Mixed Forests",
-											"Montane Grasslands and Shrublands",
-											"Flooded Grasslands and Savannas",
-											"Deserts and Xeric Shrublands",
-											"Mediterranean Forests, Woodlands and Scrub",
-											"Tropical and Subtropical Coniferous Forests",
-											"Tropical and Subtropical Moist Broadleaf Forests",
-											"Tropical and Subtropical Grasslands, Savannas and Shrublands",
-											"Tropical and Subtropical Dry Broadleaf Forests",
-											"Mangroves"))
+					    "Boreal Forests/Taiga",
+					    "Temperate Conifer Forests",
+					    "Inland Water",
+					    "Temperate Grasslands, Savannas and Shrublands",
+					    "Temperate Broadleaf and Mixed Forests",
+					    "Montane Grasslands and Shrublands",
+					    "Flooded Grasslands and Savannas",
+					    "Deserts and Xeric Shrublands",
+					    "Mediterranean Forests, Woodlands and Scrub",
+					    "Tropical and Subtropical Coniferous Forests",
+					    "Tropical and Subtropical Moist Broadleaf Forests",
+					    "Tropical and Subtropical Grasslands, Savannas and Shrublands",
+					    "Tropical and Subtropical Dry Broadleaf Forests",
+					    "Mangroves"))
 #
 ggplot( biodt, aes( x = region, weight = Individual, fill = factor))+
 geom_bar( position = "stack")+
 scale_fill_manual(values=c("No explanation"="gray",
                            "Artificial land fragmentation"="#0B3D6F",
-						   "Artificial land area"="#0081C7",
-						   "Phylogenetic diversity"="#48BCD7",
-						   "Functional diversity"="#85CBD9",
-						   "Change of nature habitat area"="#FBDBA2",
-						   "Change of artificial land area"="#FFEA48",
-						   "Nature habitat area"="#FABB01",
-						   "Nature habitat fragmentation"="#F25930"))+
+			   "Artificial land area"="#0081C7",
+			   "Phylogenetic diversity"="#48BCD7",
+			   "Functional diversity"="#85CBD9",
+			   "Change of nature habitat area"="#FBDBA2",
+			   "Change of artificial land area"="#FFEA48",
+			   "Nature habitat area"="#FABB01",
+			   "Nature habitat fragmentation"="#F25930"))+
 scale_y_continuous(expand=c(0,0))+
 theme_classic()+
 ylab("Percentage (%)")+
@@ -543,36 +393,36 @@ zoodt$Individual=zoodt$Individual*100
 unique(zoodt$factor)
 zoodt$factor <- factor(zoodt$factor, levels=c("No explanation",
                                            "Artificial land fragmentation",
-										   "Artificial land area",
-										   "Phylogenetic diversity",
-										   "Functional diversity",
-										   "Change of nature habitat area",
-										   "Change of artificial land area",
-										   "Nature habitat area",
-										   "Nature habitat fragmentation"))
+					   "Artificial land area",
+					   "Phylogenetic diversity",
+					   "Functional diversity",
+					   "Change of nature habitat area",
+					   "Change of artificial land area",
+					   "Nature habitat area",
+					   "Nature habitat fragmentation"))
 
 zoodt$region <- factor(zoodt$region, levels=c("Palearctic",
                                             "Nearctic","Sino-Japanese",
-											"Saharo-Arabian",
-											"Afrotropical",
-											"Panamanian",
-											"Neotropical",
-											"Oceanina",
-											"Australian",
-											"Oriental",
-											"Madagascan"))
+					    "Saharo-Arabian",
+					    "Afrotropical",
+					    "Panamanian",
+					    "Neotropical",
+					    "Oceanina",
+					    "Australian",
+					    "Oriental",
+					    "Madagascan"))
 #
 pzoo=ggplot( zoodt, aes( x = region, weight = Individual, fill = factor))+
 geom_bar( position = "stack")+
 scale_fill_manual(values=c("No explanation"="gray",
                            "Artificial land fragmentation"="#0B3D6F",
-						   "Artificial land area"="#0081C7",
-						   "Phylogenetic diversity"="#48BCD7",
-						   "Functional diversity"="#85CBD9",
-						   "Change of nature habitat area"="#FBDBA2",
-						   "Change of artificial land area"="#FFEA48",
-						   "Nature habitat area"="#FABB01",
-						   "Nature habitat fragmentation"="#F25930")))+
+			   "Artificial land area"="#0081C7",
+			   "Phylogenetic diversity"="#48BCD7",
+			   "Functional diversity"="#85CBD9",
+			   "Change of nature habitat area"="#FBDBA2",
+			   "Change of artificial land area"="#FFEA48",
+			   "Nature habitat area"="#FABB01",
+			   "Nature habitat fragmentation"="#F25930")))+
 scale_y_continuous(expand=c(0,0))+
 theme_classic()+
 theme(axis.text.x=element_text(angle = 90,hjust = 1),axis.title.x = element_blank(),axis.ticks.x = element_blank())
